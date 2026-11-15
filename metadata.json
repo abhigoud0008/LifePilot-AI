@@ -1,0 +1,6 @@
+{
+  "name": "LifePilot AI",
+  "description": "Your Personal AI Chief of Staff — AI-powered task prioritization, schedule optimization, burnout prediction, and focus coaching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
