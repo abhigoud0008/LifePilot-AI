@@ -24,7 +24,7 @@ LifePilot AI goes beyond static to-do lists by actively organizing your day with
 ## Tech Stack
 
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Lucide React, Recharts
-- **Backend / AI Proxy:** Express (`server.ts`), `@google/genai` (`gemini-4-hydrogen`)
+- **Backend / AI Proxy:** Traditional Express server (`server.ts`) for local/Render hosting; independent Vercel functions in `api/` for deployment, using `@google/genai`. Vercel functions read the optional `GEMINI_MODEL` setting (currently defaulting to `gemini-3.5-flash-lite` in code; verify the model ID is available with your API key).
 - **Persistence:** Browser `localStorage` abstracted behind a `StorageAdapter` interface (`src/services/storage.ts`) for straightforward migration to Firebase or another backend
 - **Testing:** Node.js built-in test runner (`node:test` + `tsx`)
 
@@ -33,10 +33,14 @@ LifePilot AI goes beyond static to-do lists by actively organizing your day with
 ## Project Structure
 
 ```text
-├── server.ts                          # Express server + Vite dev middleware + Gemini API routes
+├── server.ts                          # Traditional Node/Express server and Vite dev middleware
+├── api/                               # Independent Vercel functions, without server.ts imports
+│   ├── health.ts                      # GET /api/health
+│   └── ai/                            # POST: plan, optimize-day, coach
+├── vercel.json                        # Vite build and SPA fallback
 ├── index.html                         # HTML entry point & Google Fonts
 ├── package.json                       # Scripts & dependencies
-├── .env.example                       # Required environment variable template
+├── .env.example                       # Environment variable template
 └── src/
     ├── App.tsx                        # Top-level view & workspace router
     ├── index.css                      # Tailwind v4 theme & animations
@@ -77,8 +81,8 @@ LifePilot AI goes beyond static to-do lists by actively organizing your day with
 ### 1. Clone & Install
 
 ```bash
-git clone <your-repo-url>
-cd lifepilot-ai
+git clone https://github.com/abhigoud0008/LifePilot-AI.git
+cd LifePilot-AI
 npm install
 ```
 
@@ -91,10 +95,14 @@ cp .env.example .env
 ```
 
 ```env
-GEMINI_API_KEY="your_gemini_api_key_here"
+GEMINI_API_KEY=your_gemini_api_key_here
+# Optional: Vercel function model override (must be an available API model ID)
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
-> All Gemini API calls run server-side through Express (`/api/ai/*`) so the API key is never exposed to the browser.
+Do not commit `.env` or any real API key. The `GEMINI_MODEL` setting currently applies to the Vercel API functions. The traditional local/Render `server.ts` still uses its separately hardcoded model. Model access, quota, and billing are governed by your Gemini API configuration.
+
+> Gemini requests run on the backend through `/api/ai/*`: Express when using the traditional server and individual functions on Vercel. The API key must never be placed in frontend `VITE_` variables or Git.
 
 ### 3. Run Development Server
 
@@ -121,6 +129,41 @@ npm run lint
 # Run unit tests for scoring, burnout, and achievement logic
 npx --yes tsx --test src/utils/productivity.test.ts src/utils/burnout.test.ts src/utils/achievements.test.ts
 ```
+
+---
+
+## Deploy to Vercel (React/Vite + Node.js Functions)
+
+This repository includes **four Vercel function entrypoints**: one health check and three AI endpoints. Vercel deploys the React/Vite frontend separately; do not use the traditional `npm start` command as a Vercel start command.
+
+1. Open [Vercel New Project](https://vercel.com/new) and import [abhigoud0008/LifePilot-AI](https://github.com/abhigoud0008/LifePilot-AI) from GitHub.
+2. Configure framework preset **Vite**, root directory `./`, build command `npm run build`, output directory `dist`, and a compatible Node.js version (22.x works with this project).
+3. Set these under **Project Settings → Environment Variables** for Production:
+   - `GEMINI_API_KEY`: your secret Gemini API key. Do **not** commit it or prefix it with `VITE_`.
+   - `GEMINI_MODEL` (optional): the Gemini model ID supported by your Google AI Studio key. The current function code defaults to `gemini-3.5-flash-lite`, but you should verify its availability before relying on it; an unavailable ID will cause AI API errors.
+4. Deploy the latest `main` branch, then open `https://YOUR-PROJECT.vercel.app/api/health`. Expected JSON includes `ok: true` and an `aiConfigured` flag indicating whether a key is present (not whether the model call works).
+5. Test the UI's **AI Planner**, **Optimize My Day**, and **AI Coach** actions. A successful health check does not guarantee Gemini model availability.
+6. Enable automatic GitHub deployments if desired. Re-deploy after adding or updating environment variables.
+
+Vercel API routes:
+| Path | Method | Purpose |
+| --- | --- | --- |
+| `/api/health` | GET | Function health and API key presence |
+| `/api/ai/plan` | POST | AI task plan |
+| `/api/ai/optimize-day` | POST | AI day optimizer |
+| `/api/ai/coach` | POST | AI coach |
+
+### Troubleshooting and limitations
+
+- If the website loads but AI features fail, check **Vercel → Project → Logs** for runtime errors and inspect the API response status. Gemini model IDs, quotas, and permissions are independent of Vercel deployment.
+- `ERR_MODULE_NOT_FOUND` during function invocation indicates a broken module import. The Vercel functions here are intentionally self-contained rather than importing the traditional `server.ts`.
+- `Unexpected token ... is not valid JSON` may mean the endpoint returned a platform error page rather than JSON. Verify the response status and function logs.
+- If API routes return 404, verify the `api/` directory was committed and the latest branch deployed. If a deep-link reload is 404, check `vercel.json` SPA rewrites.
+- The current traditional `server.ts` and Vercel functions are separate implementations. Changes to AI logic must be applied consistently to both.
+- Progress, demo accounts, and workspace data are kept in each browser's **localStorage**, not in a shared database. This is **not** synchronized login or secure production account authentication; clearing browser data can erase progress.
+- Vercel functions are invoked on demand rather than running continuously. Their execution limits, free-plan quotas, and Hobby plan personal/non-commercial restrictions apply. Gemini API quotas and possible charges are separate.
+
+Official reference: [Vercel's Vite deployment guide](https://vercel.com/docs/frameworks/frontend/vite).
 
 ---
 
